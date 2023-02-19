@@ -1,14 +1,22 @@
-# Welcome to your CDK TypeScript project
+# AWS Serverless Microservices Service Discovery Proof of Concept
 
-This is a blank project for CDK development with TypeScript.
+Proof of Concept showing how you can use AWS Cloud Map or AWS Systems Manager Parameter Store to maintian details on deployed services and use it to dynamically reference resources.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+## Setup
 
-## Useful commands
-
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `cdk deploy`      deploy this stack to your default AWS account/region
-* `cdk diff`        compare deployed stack with current state
-* `cdk synth`       emits the synthesized CloudFormation template
+1. Ensure you have Node.js 18 installed on your machine
+2. Ensure you have the [AWS CLI](https://aws.amazon.com/cli/) installed on your machine
+3. Configure a terminal session with AWS programmatic credentials
+4. Install this repo's dependencies
+   ```bash
+   npm ci
+   ```
+5. Run the CDK's boostrap command to ensure you AWS account is configured correctly
+   ```bash
+   npx cdk boostrap
+   ```
+6. Deploy the AWS resources
+   ```bash
+   npm run deploy
+   ```
+7. In the output look for `ssm-poc-service.ParameterStorePOCUrl` and `cloudmap-poc-service.CloudMapPOCUrl`, these URLs will retrieve the URLs for our two mock microservices and call the API and return the output

@@ -1,21 +1,62 @@
 #!/usr/bin/env node
-import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { ProofOfConceptStack } from '../lib/poc-stack';
+import 'source-map-support/register';
+import { MockServiceStack } from '../lib/mock-app-stack';
+import { CloudMapProofOfConceptStack } from '../lib/cloudmap-poc-stack';
+import { SharedInfrastructureStack } from '../lib/shared-infrastructure';
+import { ParameterStoreProofOfConceptStack } from '../lib/parameters-poc-stack';
 
-const app = new cdk.App();
-new ProofOfConceptStack(app, 'PocServerlessMicroserviceDiscoveryStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
+const app = new cdk.App({});
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+const sharedInfrastructure = new SharedInfrastructureStack(
+  app,
+  'shared-infrastructure',
+  {
+    namespace: 'poc-app',
+  }
+);
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+const mockServiceOne = new MockServiceStack(app, 'service-one', {
+  serviceName: 'service-one',
+  sharedNamespace: {
+    arn: sharedInfrastructure.namespace.namespaceArn,
+    id: sharedInfrastructure.namespace.namespaceId,
+    name: sharedInfrastructure.namespace.namespaceName,
+  },
 });
+mockServiceOne.addDependency(sharedInfrastructure);
+
+const mockServiceTwo = new MockServiceStack(app, 'service-two', {
+  serviceName: 'service-two',
+  sharedNamespace: {
+    arn: sharedInfrastructure.namespace.namespaceArn,
+    id: sharedInfrastructure.namespace.namespaceId,
+    name: sharedInfrastructure.namespace.namespaceName,
+  },
+});
+mockServiceTwo.addDependency(sharedInfrastructure);
+
+const cloudMapPOCService = new CloudMapProofOfConceptStack(
+  app,
+  'cloudmap-poc-service',
+  {
+    namespace: sharedInfrastructure.namespace.namespaceName,
+    serviceOneName: mockServiceOne.serviceName,
+    serviceTwoName: mockServiceTwo.serviceName,
+  }
+);
+cloudMapPOCService.addDependency(sharedInfrastructure);
+cloudMapPOCService.addDependency(mockServiceOne);
+cloudMapPOCService.addDependency(mockServiceTwo);
+
+const parameterStorePOCService = new ParameterStoreProofOfConceptStack(
+  app,
+  'ssm-poc-service',
+  {
+    serviceOneName: mockServiceOne.serviceName,
+    serviceTwoName: mockServiceTwo.serviceName,
+  }
+);
+parameterStorePOCService.addDependency(sharedInfrastructure);
+parameterStorePOCService.addDependency(mockServiceOne);
+parameterStorePOCService.addDependency(mockServiceTwo);
