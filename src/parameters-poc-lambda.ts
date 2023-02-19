@@ -1,40 +1,30 @@
 import { injectLambdaContext, Logger } from '@aws-lambda-powertools/logger';
 import { captureLambdaHandler, Tracer } from '@aws-lambda-powertools/tracer';
-import { GetParametersByPathCommand, SSMClient } from '@aws-sdk/client-ssm';
 
 import middy from '@middy/core';
 const tracer = new Tracer({});
 const logger = new Logger({});
 
-let client: SSMClient;
-
 async function lambdaHandler(event: unknown) {
-  client = client || tracer.captureAWSv3Client(new SSMClient({}));
+  const [serviceOneApiGatewayUrl, serviceTwoApiGatewayUrl] = await Promise.all([
+    getParameter(
+      process.env.PARAMETER_NAMESPACE!,
+      process.env.PARAMETER_SERVICE_ONE_NAME!
+    ),
+    getParameter(
+      process.env.PARAMETER_NAMESPACE!,
+      process.env.PARAMETER_SERVICE_TWO_NAME!
+    ),
+  ]);
 
-  const apiGatewayUrls = await getParameters(
-    client,
-    process.env.PARAMETER_NAMESPACE!
-  );
+  logger.info('SSM Responses', {
+    serviceOneApiGatewayUrl,
+    serviceTwoApiGatewayUrl,
+  });
 
   const [serviceOneResults, serviceTwoResults] = await Promise.all([
-    testApi(
-      process.env.PARAMETER_SERVICE_ONE_NAME!,
-      apiGatewayUrls.find(
-        (p) =>
-          p.name ===
-          `/${process.env.PARAMETER_NAMESPACE!}/${process.env
-            .PARAMETER_SERVICE_ONE_NAME!}`
-      )?.value!
-    ),
-    testApi(
-      process.env.PARAMETER_SERVICE_TWO_NAME!,
-      apiGatewayUrls.find(
-        (p) =>
-          p.name ===
-          `/${process.env.PARAMETER_NAMESPACE!}/${process.env
-            .PARAMETER_SERVICE_TWO_NAME!}`
-      )?.value!
-    ),
+    testApi(serviceOneApiGatewayUrl),
+    testApi(serviceTwoApiGatewayUrl),
   ]);
 
   return {
@@ -46,16 +36,21 @@ async function lambdaHandler(event: unknown) {
   };
 }
 
-async function getParameters(client: SSMClient, appName: string) {
-  const resp = await client.send(
-    new GetParametersByPathCommand({
-      Path: `/${appName}/`,
-    })
-  );
-  return resp.Parameters?.map((p) => ({ name: p.Name, value: p.Value })) || [];
+async function getParameter(appName: string, serviceName: string) {
+  const reqUrl = new URL('http://localhost:2773/systemsmanager/parameters/get');
+  reqUrl.searchParams.append('name', `/${appName}/${serviceName}`);
+  const apiResp = await fetch(reqUrl, {
+    method: 'GET',
+    headers: {
+      'X-Aws-Parameters-Secrets-Token': process.env.AWS_SESSION_TOKEN!,
+    },
+  });
+  const ssmResp = await apiResp.json();
+  logger.info('SSM Response', { ssmResp });
+  return ssmResp.Parameter.Value;
 }
 
-async function testApi(serviceName: string, apiGatewayUrl: string) {
+async function testApi(apiGatewayUrl: string) {
   const apiResp = await fetch(`${apiGatewayUrl}/hello-world`, {
     method: 'GET',
   });

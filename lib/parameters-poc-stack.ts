@@ -1,6 +1,7 @@
-import { CfnOutput, Stack, StackProps } from 'aws-cdk-lib';
+import { ArnFormat, CfnOutput, Duration, Stack, StackProps } from 'aws-cdk-lib';
 import { EndpointType, LambdaRestApi } from 'aws-cdk-lib/aws-apigateway';
 import { Effect, Policy, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { LayerVersion } from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 import { InstrumentedNodeFunction } from './constructs/instrumented-node-function';
 
@@ -25,13 +26,27 @@ export class ParameterStoreProofOfConceptStack extends Stack {
         PARAMETER_SERVICE_TWO_NAME: props.serviceTwoName,
       },
       entry: 'src/parameters-poc-lambda.ts',
+      timeout: Duration.seconds(10),
     });
+    lambda.addLayers(
+      LayerVersion.fromLayerVersionArn(
+        this,
+        'ssm-layer',
+        Stack.of(this).formatArn({
+          resource: 'layer',
+          account: '590474943231',
+          resourceName: 'AWS-Parameters-and-Secrets-Lambda-Extension:2',
+          service: 'lambda',
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+        })
+      )
+    );
 
     lambda.role?.attachInlinePolicy(
       new Policy(this, 'service-discovery-policy', {
         statements: [
           new PolicyStatement({
-            actions: ['ssm:GetParametersByPath'],
+            actions: ['ssm:GetParametersByPath', 'ssm:GetParameter'],
             resources: ['*'],
             effect: Effect.ALLOW,
           }),
