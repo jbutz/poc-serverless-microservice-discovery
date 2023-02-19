@@ -1,4 +1,4 @@
-import { Stack } from 'aws-cdk-lib';
+import { ArnFormat, Stack } from 'aws-cdk-lib';
 import { LayerVersion, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import {
   NodejsFunction,
@@ -28,9 +28,13 @@ export class InstrumentedNodeFunction extends NodejsFunction {
     const powertoolsLayer = LayerVersion.fromLayerVersionArn(
       this,
       'PowertoolsLayer',
-      `arn:aws:lambda:${
-        Stack.of(this).region
-      }:094274105915:layer:AWSLambdaPowertoolsTypeScript:7`
+      Stack.of(this).formatArn({
+        resource: 'layer',
+        account: '094274105915',
+        resourceName: 'AWSLambdaPowertoolsTypeScript:7',
+        service: 'lambda',
+        arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+      })
     );
 
     this.addLayers(powertoolsLayer);
